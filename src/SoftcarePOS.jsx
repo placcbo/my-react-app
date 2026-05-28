@@ -52,6 +52,7 @@ const Icons = {
   eye: "M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8zM12 9a3 3 0 100 6 3 3 0 000-6z",
   pdf: "M4 4v16h16V4H4zm2 2h12v12H6V6zm2 2v8h8V8H8z",
   reset: "M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 9v6M9 12h6",
+  download: "M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3",
 };
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -74,7 +75,265 @@ const fmtPhone = (p) => {
   return n;
 };
 
-// ─── PROFESSIONAL PRINT RECEIPT (with VAT, QR, barcode) ─────────────────────
+// ─── LOAD JSPDF LIBRARY DYNAMICALLY ─────────────────────────────────────────
+const loadJsPDF = () => {
+  return new Promise((resolve, reject) => {
+    if (window.jspdf) {
+      resolve(window.jspdf);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+    script.onload = () => resolve(window.jspdf);
+    script.onerror = reject;
+    document.head.appendChild(script);
+  });
+};
+
+// ─── GENERATE RECEIPT PDF AS BLOB ───────────────────────────────────────────
+const generateReceiptPDF = async (sale) => {
+  const { jsPDF } = await loadJsPDF();
+  const items = JSON.parse(sale.items);
+  const receiptNum = "RC" + String(sale.id).slice(-6).toUpperCase();
+  const subTotal = sale.total;
+  const vat = subTotal * 0.16;
+  const total = subTotal + vat;
+  const saleDate = new Date(sale.date);
+
+  // Create PDF: narrow receipt format (80mm thermal style)
+  const pdf = new jsPDF({
+    orientation: "portrait",
+    unit: "mm",
+    format: [80, 200] // 80mm width, auto height
+  });
+
+  let y = 10;
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const centerX = pageWidth / 2;
+
+  // Helper functions
+  const centerText = (text, size, bold = false, color = [30, 30, 30]) => {
+    if (bold) pdf.setFont("helvetica", "bold");
+    else pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(size);
+    pdf.setTextColor(...color);
+    pdf.text(text, centerX, y, { align: "center" });
+  };
+
+  const leftText = (text, size, bold = false, x = 5, color = [30, 30, 30]) => {
+    if (bold) pdf.setFont("helvetica", "bold");
+    else pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(size);
+    pdf.setTextColor(...color);
+    pdf.text(text, x, y);
+  };
+
+  const rightText = (text, size, bold = false, x = 75, color = [30, 30, 30]) => {
+    if (bold) pdf.setFont("helvetica", "bold");
+    else pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(size);
+    pdf.setTextColor(...color);
+    pdf.text(text, x, y, { align: "right" });
+  };
+
+  const line = (yPos) => {
+    pdf.setDrawColor(200, 200, 200);
+    pdf.setLineWidth(0.3);
+    pdf.line(3, yPos, 77, yPos);
+  };
+
+  const dashedLine = (yPos) => {
+    pdf.setDrawColor(180, 180, 180);
+    pdf.setLineWidth(0.2);
+    pdf.setLineDashPattern([2, 2], 0);
+    pdf.line(5, yPos, 75, yPos);
+    pdf.setLineDashPattern([], 0);
+  };
+
+  // Header
+  centerText("SOFTCARE SOLUTIONS", 14, true, [30, 64, 175]);
+  y += 5;
+  centerText("Mobile Repair & Accessories", 8, false, [100, 100, 100]);
+  y += 4;
+  centerText("Nairobi CBD · +254 700 123 456", 7, false, [120, 120, 120]);
+  y += 3;
+  centerText("PIN: P051234567Z", 7, false, [120, 120, 120]);
+  y += 6;
+  
+  dashedLine(y);
+  y += 4;
+
+  // Receipt details
+  leftText("Receipt:", 9, true);
+  rightText(receiptNum, 9, true);
+  y += 4;
+  leftText("Date:", 8);
+  rightText(saleDate.toLocaleString("en-KE"), 8);
+  y += 4;
+  leftText("Customer:", 8);
+  rightText(sale.customer, 8, true);
+  y += 4;
+  if (sale.phone) {
+    leftText("Phone:", 8);
+    rightText(sale.phone, 8);
+    y += 4;
+  }
+  leftText("Payment:", 8);
+  rightText(sale.payment, 8);
+  y += 6;
+
+  dashedLine(y);
+  y += 4;
+
+  // Items table header
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(8);
+  pdf.setTextColor(30, 30, 30);
+  pdf.text("Item", 5, y);
+  pdf.text("Qty", 45, y, { align: "center" });
+  pdf.text("Amount", 75, y, { align: "right" });
+  y += 3;
+  line(y);
+  y += 3;
+
+  // Items
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(8);
+  items.forEach((it) => {
+    // Item name (wrap if long)
+    const itemName = it.name.length > 25 ? it.name.substring(0, 25) + "..." : it.name;
+    pdf.text(itemName, 5, y);
+    pdf.text(String(it.qty), 45, y, { align: "center" });
+    pdf.text(fmt(it.price * it.qty), 75, y, { align: "right" });
+    y += 5;
+  });
+
+  dashedLine(y);
+  y += 4;
+
+  // Totals
+  leftText("Subtotal:", 9);
+  rightText(fmt(subTotal), 9);
+  y += 4;
+  pdf.setTextColor(120, 120, 120);
+  leftText("VAT (16%):", 8);
+  rightText(fmt(vat), 8);
+  y += 5;
+  
+  // Total line
+  pdf.setDrawColor(30, 64, 175);
+  pdf.setLineWidth(0.5);
+  pdf.line(5, y, 75, y);
+  y += 4;
+  
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(11);
+  pdf.setTextColor(30, 64, 175);
+  leftText("TOTAL", 11, true, 5, [30, 64, 175]);
+  rightText(fmt(total), 11, true, 75, [30, 64, 175]);
+  y += 8;
+
+  dashedLine(y);
+  y += 5;
+
+  // Footer
+  centerText("Thank you for choosing Softcare!", 8, false, [100, 100, 100]);
+  y += 3;
+  centerText("Goods once sold cannot be exchanged.", 7, false, [130, 130, 130]);
+  y += 3;
+  centerText("www.softcare.co.ke", 7, false, [100, 140, 100]);
+
+  // Add QR placeholder (simple box)
+  y += 8;
+  pdf.setDrawColor(180, 180, 180);
+  pdf.setLineWidth(0.3);
+  pdf.rect(25, y, 30, 30);
+  pdf.setFontSize(6);
+  pdf.setTextColor(150, 150, 150);
+  pdf.text("SCAN", 40, y + 16, { align: "center" });
+
+  return pdf.output("blob");
+};
+
+// ─── SEND PDF VIA WHATSAPP (Web Share API) ──────────────────────────────────
+const sendWhatsAppPDF = async (sale) => {
+  if (!sale.phone || sale.phone.trim() === "") {
+    alert("No phone number for this customer. Please add a phone number to send WhatsApp receipt.");
+    return;
+  }
+
+  try {
+    // Show loading state
+    const originalBtn = document.activeElement;
+    
+    // Generate PDF blob
+    const pdfBlob = await generateReceiptPDF(sale);
+    const pdfFile = new File([pdfBlob], `Receipt_${String(sale.id).slice(-6)}.pdf`, {
+      type: "application/pdf"
+    });
+
+    const receiptNum = "RC" + String(sale.id).slice(-6).toUpperCase();
+    const total = fmt(sale.total);
+    
+    // Prepare share data
+    const shareData = {
+      title: `Receipt ${receiptNum} - Softcare Solutions`,
+      text: `*SOFTCARE SOLUTIONS* 🔧\nReceipt ${receiptNum}\n━━━━━━━━━━\nCustomer: ${sale.customer}\nTotal: ${total}\nPayment: ${sale.payment}\n━━━━━━━━━━\n\n📎 PDF receipt attached below.`,
+      files: [pdfFile]
+    };
+
+    // Try Web Share API (works on Android Chrome, iOS Safari 15+)
+    if (navigator.share && navigator.canShare?.(shareData)) {
+      // Filter to WhatsApp if possible (Android)
+      if (/Android/i.test(navigator.userAgent)) {
+        // On Android, we can hint at WhatsApp
+        await navigator.share({
+          ...shareData,
+          url: `https://wa.me/${fmtPhone(sale.phone)}`
+        });
+      } else {
+        await navigator.share(shareData);
+      }
+    } else {
+      // Fallback: Download PDF + open WhatsApp with instructions
+      const downloadUrl = URL.createObjectURL(pdfBlob);
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      a.download = `Receipt_${receiptNum}.pdf`;
+      a.click();
+      URL.revokeObjectURL(downloadUrl);
+      
+      // Open WhatsApp with text instructions
+      const msg = `*SOFTCARE SOLUTIONS* 🔧\nReceipt ${receiptNum}\n━━━━━━━━━━\nCustomer: ${sale.customer}\nTotal: ${total}\n━━━━━━━━━━\n\n📄 Your PDF receipt has been downloaded. Please attach "Receipt_${receiptNum}.pdf" from your Downloads folder to send it.`;
+      const phone = fmtPhone(sale.phone);
+      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, "_blank");
+      
+      alert("📄 PDF downloaded! In WhatsApp, tap the 📎 attachment icon and select the downloaded PDF.");
+    }
+  } catch (err) {
+    console.error("PDF/Share error:", err);
+    // Final fallback: text-only WhatsApp
+    sendWhatsAppText(sale);
+    alert("Could not send PDF. Sent text receipt instead. Please check your downloads for the PDF file.");
+  }
+};
+
+// ─── WHATSAPP TEXT RECEIPT (fallback) ───────────────────────────────────────
+const sendWhatsAppText = (sale) => {
+  if (!sale.phone || sale.phone.trim() === "") {
+    alert("No phone number for this customer. Please add a phone number to send WhatsApp receipt.");
+    return;
+  }
+  const items = JSON.parse(sale.items);
+  const receiptNum = "RC" + String(sale.id).slice(-6).toUpperCase();
+  const lines = items.map(it => `  • ${it.name} ×${it.qty}: Ksh ${(it.price * it.qty).toLocaleString()}`).join("\n");
+  const msg = `*SOFTCARE SOLUTIONS* 🔧\nNairobi CBD | +254 700 123 456\n━━━━━━━━━━━━━━━━\n*Receipt ${receiptNum}*\nDate: ${new Date(sale.date).toLocaleString("en-KE")}\nCustomer: *${sale.customer}*\nPayment: ${sale.payment}\n━━━━━━━━━━━━━━━━\n${lines}\n━━━━━━━━━━━━━━━━\n*TOTAL: Ksh ${Number(sale.total).toLocaleString()}*\n\nThank you for choosing Softcare! We appreciate your business 🙏`;
+  const phone = fmtPhone(sale.phone);
+  const url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+  window.open(url, "_blank");
+};
+
+// ─── THERMAL PRINT RECEIPT ──────────────────────────────────────────────────
 const printReceipt = (sale) => {
   const items = JSON.parse(sale.items);
   const receiptNum = "RC" + String(sale.id).slice(-6).toUpperCase();
@@ -252,22 +511,26 @@ const printReceipt = (sale) => {
   w.document.close();
 };
 
-// ─── WHATSAPP RECEIPT ───────────────────────────────────────────────────────
-const sendWhatsApp = (sale) => {
-  if (!sale.phone || sale.phone.trim() === "") {
-    alert("No phone number for this customer. Please add a phone number to send WhatsApp receipt.");
-    return;
+// ─── SAVE PDF BUTTON (download only) ────────────────────────────────────────
+const saveReceiptPDF = async (sale) => {
+  try {
+    const pdfBlob = await generateReceiptPDF(sale);
+    const receiptNum = "RC" + String(sale.id).slice(-6).toUpperCase();
+    const url = URL.createObjectURL(pdfBlob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Softcare_Receipt_${receiptNum}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error("PDF save error:", err);
+    alert("Could not generate PDF. Please try again.");
   }
-  const items = JSON.parse(sale.items);
-  const receiptNum = "RC" + String(sale.id).slice(-6).toUpperCase();
-  const lines = items.map(it => `  • ${it.name} ×${it.qty}: Ksh ${(it.price * it.qty).toLocaleString()}`).join("\n");
-  const msg = `*SOFTCARE SOLUTIONS* 🔧\nNairobi CBD | +254 700 123 456\n━━━━━━━━━━━━━━━━\n*Receipt ${receiptNum}*\nDate: ${new Date(sale.date).toLocaleString("en-KE")}\nCustomer: *${sale.customer}*\nPayment: ${sale.payment}\n━━━━━━━━━━━━━━━━\n${lines}\n━━━━━━━━━━━━━━━━\n*TOTAL: Ksh ${Number(sale.total).toLocaleString()}*\n\nThank you for choosing Softcare! We appreciate your business 🙏`;
-  const phone = fmtPhone(sale.phone);
-  const url = `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
-  window.open(url, "_blank");
 };
 
-// ─── RECEIPT CARD (with PDF button) ─────────────────────────────────────────
+// ─── RECEIPT CARD (with PDF WhatsApp button) ─────────────────────────────────
 function ReceiptCard({ sale, onClose }) {
   const items = JSON.parse(sale.items);
   const receiptNum = "RC" + String(sale.id).slice(-6).toUpperCase();
@@ -295,16 +558,32 @@ function ReceiptCard({ sale, onClose }) {
         <span>TOTAL</span><span style={{ color: "#4ade80" }}>Ksh {Number(sale.total).toLocaleString()}</span>
       </div>
       <div style={{ textAlign: "center", marginTop: 12, fontSize: 11, color: "#475569" }}>Thank you for choosing Softcare!</div>
-      <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-        {onClose && <button onClick={onClose} style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "1px solid #334155", background: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Close</button>}
-        <button onClick={() => printReceipt(sale)} style={{ flex: 1.2, padding: "9px 0", borderRadius: 8, border: "none", background: "#2563eb", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-          <Icon d={Icons.print} size={15} /> Print
+      <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
+        {onClose && (
+          <button 
+            onClick={onClose} 
+            style={{ flex: "1 1 100%", padding: "9px 0", borderRadius: 8, border: "1px solid #334155", background: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: 13, fontWeight: 600 }}
+          >
+            Close
+          </button>
+        )}
+        <button 
+          onClick={() => printReceipt(sale)} 
+          style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "none", background: "#2563eb", color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, minWidth: 70 }}
+        >
+          <Icon d={Icons.print} size={14} /> Thermal
         </button>
-        <button onClick={() => printReceipt(sale)} style={{ flex: 1.2, padding: "9px 0", borderRadius: 8, border: "none", background: "#dc2626", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-          <Icon d={Icons.pdf} size={15} /> PDF
+        <button 
+          onClick={() => saveReceiptPDF(sale)} 
+          style={{ flex: 1, padding: "9px 0", borderRadius: 8, border: "none", background: "#7c3aed", color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, minWidth: 70 }}
+        >
+          <Icon d={Icons.download} size={14} /> Save PDF
         </button>
-        <button onClick={() => sendWhatsApp(sale)} style={{ flex: 1.4, padding: "9px 0", borderRadius: 8, border: "none", background: "#16a34a", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-          <Icon d={Icons.whatsapp} size={15} /> WhatsApp
+        <button 
+          onClick={() => sendWhatsAppPDF(sale)} 
+          style={{ flex: 1.3, padding: "9px 0", borderRadius: 8, border: "none", background: "#16a34a", color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, minWidth: 90 }}
+        >
+          <Icon d={Icons.whatsapp} size={14} /> WhatsApp PDF
         </button>
       </div>
     </div>
@@ -317,7 +596,6 @@ export default function SoftcarePOS() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   
-  // Load from localStorage or start with empty arrays (NO DEMO DATA)
   const [stock, setStock] = useState(() => loadFromStorage(STORAGE_KEYS.STOCK, EMPTY_STOCK));
   const [sales, setSales] = useState(() => loadFromStorage(STORAGE_KEYS.SALES, EMPTY_SALES));
   const [reminders, setReminders] = useState(() => loadFromStorage(STORAGE_KEYS.REMINDERS, EMPTY_REMINDERS));
@@ -330,7 +608,6 @@ export default function SoftcarePOS() {
   const [toast, setToast] = useState(null);
   const [lastSale, setLastSale] = useState(null);
 
-  // Save to localStorage whenever data changes
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.STOCK, JSON.stringify(stock));
   }, [stock]);
@@ -343,7 +620,6 @@ export default function SoftcarePOS() {
     localStorage.setItem(STORAGE_KEYS.REMINDERS, JSON.stringify(reminders));
   }, [reminders]);
 
-  // Detect mobile screen size
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 700);
     checkMobile();
@@ -356,7 +632,6 @@ export default function SoftcarePOS() {
     setTimeout(() => setToast(null), 3200);
   };
 
-  // Reset all data (clear localStorage and reload page)
   const resetAllData = () => {
     if (window.confirm("⚠️ WARNING: This will delete ALL stock, sales, and reminders. This action cannot be undone. Continue?")) {
       localStorage.removeItem(STORAGE_KEYS.STOCK);
@@ -619,7 +894,7 @@ function Dashboard({ sales, stock, todayRevenue, totalRevenue, lowStock, reminde
                 <div style={{ color: "#475569", fontSize: 12, marginTop: 2 }}>{timeAgo(s.date)} · {s.payment}</div>
               </div>
               <div style={{ fontWeight: 700, color: "#4ade80", fontSize: 15, marginRight: 10 }}>{fmt(s.total)}</div>
-              <button className="btn btn-wa" style={{ padding: "6px 10px", fontSize: 12 }} onClick={() => sendWhatsApp(s)}>
+              <button className="btn btn-wa" style={{ padding: "6px 10px", fontSize: 12 }} onClick={() => sendWhatsAppPDF(s)}>
                 <Icon d={Icons.whatsapp} size={14} />
               </button>
             </div>
@@ -750,7 +1025,7 @@ function Orders({ sales, setSales, showToast }) {
   );
 }
 
-// ─── INVOICES (with delete) ─────────────────────────────────────────────────
+// ─── INVOICES (with delete + WhatsApp PDF) ──────────────────────────────────
 function Invoices({ sales, setSales, showToast }) {
   const [selected, setSelected] = useState(null);
   const deleteInvoice = (id) => {
@@ -774,8 +1049,8 @@ function Invoices({ sales, setSales, showToast }) {
         <div style={{ marginTop: 16, textAlign: "right" }}><div style={{ fontSize: 18, fontWeight: 800, color: "#4ade80" }}>Total: {fmt(selected.total)}</div><div style={{ color: "#64748b", fontSize: 13, marginTop: 4 }}>Paid via {selected.payment}</div></div>
         <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
           <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setSelected(null)}>← Back</button>
-          <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => printReceipt(selected)}>🖨️ Print</button>
-          <button className="btn btn-wa" style={{ flex: 1 }} onClick={() => sendWhatsApp(selected)}><Icon d={Icons.whatsapp} size={15} /> WhatsApp</button>
+          <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => printReceipt(selected)}>🖨️ Thermal</button>
+          <button className="btn btn-wa" style={{ flex: 1 }} onClick={() => sendWhatsAppPDF(selected)}><Icon d={Icons.whatsapp} size={15} /> WhatsApp PDF</button>
           <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => deleteInvoice(selected.id)}>Delete</button>
         </div>
       </div>
@@ -785,12 +1060,12 @@ function Invoices({ sales, setSales, showToast }) {
     <div className="card">
       <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: "#f1f5f9" }}>Invoices ({sales.length})</div>
       <table className="table"><thead><tr><th>Invoice #</th><th>Customer</th><th>Amount</th><th>Date</th><th>Actions</th></tr></thead><tbody>{sales.map((s, i) => (
-        <tr key={s.id}><td style={{ fontWeight: 600, color: "#60a5fa" }}>INV{String(i + 1).padStart(4, "0")}</td><td style={{ color: "#e2e8f0" }}>{s.customer}</td><td style={{ fontWeight: 700, color: "#4ade80" }}>{fmt(s.total)}</td><td style={{ color: "#475569", fontSize: 13 }}>{new Date(s.date).toLocaleDateString("en-KE")}</td><td style={{ display: "flex", gap: 6 }}><button className="btn btn-ghost" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => setSelected(s)}>View</button><button className="btn btn-wa" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => sendWhatsApp(s)}><Icon d={Icons.whatsapp} size={13} /></button><button onClick={() => deleteInvoice(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", padding: "5px 10px" }}><Icon d={Icons.trash} size={14} /></button></td></tr>))}</tbody></table>
+        <tr key={s.id}><td style={{ fontWeight: 600, color: "#60a5fa" }}>INV{String(i + 1).padStart(4, "0")}</td><td style={{ color: "#e2e8f0" }}>{s.customer}</td><td style={{ fontWeight: 700, color: "#4ade80" }}>{fmt(s.total)}</td><td style={{ color: "#475569", fontSize: 13 }}>{new Date(s.date).toLocaleDateString("en-KE")}</td><td style={{ display: "flex", gap: 6 }}><button className="btn btn-ghost" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => setSelected(s)}>View</button><button className="btn btn-wa" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => sendWhatsAppPDF(s)}><Icon d={Icons.whatsapp} size={13} /> PDF</button><button onClick={() => deleteInvoice(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", padding: "5px 10px" }}><Icon d={Icons.trash} size={14} /></button></td></tr>))}</tbody></table>
     </div>
   );
 }
 
-// ─── RECEIPTS (with delete) ─────────────────────────────────────────────────
+// ─── RECEIPTS (with delete + WhatsApp PDF) ──────────────────────────────────
 function Receipts({ sales, setSales, showToast }) {
   const [selected, setSelected] = useState(null);
   const deleteReceipt = (id) => {
@@ -811,7 +1086,7 @@ function Receipts({ sales, setSales, showToast }) {
     <div className="card">
       <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: "#f1f5f9" }}>Receipt History ({sales.length})</div>
       <table className="table"><thead><tr><th>Receipt #</th><th>Customer</th><th>Amount</th><th>Payment</th><th>Date</th><th>Actions</th></tr></thead><tbody>{sales.map((s, i) => (
-        <tr key={s.id}><td style={{ fontWeight: 600, color: "#94a3b8" }}>RC{String(i + 1).padStart(4, "0")}</td><td style={{ fontWeight: 600, color: "#e2e8f0" }}>{s.customer}</td><td style={{ fontWeight: 700, color: "#4ade80" }}>{fmt(s.total)}</td><td><span className={`badge ${s.payment === "Mpesa" ? "badge-blue" : "badge-gray"}`}>{s.payment}</span></td><td style={{ color: "#475569", fontSize: 13 }}>{new Date(s.date).toLocaleDateString("en-KE")}</td><td><div style={{ display: "flex", gap: 6 }}><button className="btn btn-ghost" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => setSelected(s)}><Icon d={Icons.eye} size={13} /></button><button className="btn btn-primary" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => printReceipt(s)}><Icon d={Icons.print} size={13} /></button><button className="btn btn-wa" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => sendWhatsApp(s)}><Icon d={Icons.whatsapp} size={13} /></button><button onClick={() => deleteReceipt(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", padding: "5px 10px" }}><Icon d={Icons.trash} size={14} /></button></div></td></tr>))}</tbody></table>
+        <tr key={s.id}><td style={{ fontWeight: 600, color: "#94a3b8" }}>RC{String(i + 1).padStart(4, "0")}</td><td style={{ fontWeight: 600, color: "#e2e8f0" }}>{s.customer}</td><td style={{ fontWeight: 700, color: "#4ade80" }}>{fmt(s.total)}</td><td><span className={`badge ${s.payment === "Mpesa" ? "badge-blue" : "badge-gray"}`}>{s.payment}</span></td><td style={{ color: "#475569", fontSize: 13 }}>{new Date(s.date).toLocaleDateString("en-KE")}</td><td><div style={{ display: "flex", gap: 6 }}><button className="btn btn-ghost" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => setSelected(s)}><Icon d={Icons.eye} size={13} /></button><button className="btn btn-primary" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => printReceipt(s)}><Icon d={Icons.print} size={13} /></button><button className="btn btn-wa" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => sendWhatsAppPDF(s)}><Icon d={Icons.whatsapp} size={13} /> PDF</button><button onClick={() => deleteReceipt(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", padding: "5px 10px" }}><Icon d={Icons.trash} size={14} /></button></div></td></tr>))}</tbody></table>
     </div>
   );
 }
