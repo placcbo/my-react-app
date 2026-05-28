@@ -7,38 +7,22 @@ const STORAGE_KEYS = {
   REMINDERS: "softcare_reminders",
 };
 
-// ─── DEMO DATA (only used if localStorage is empty) ─────────────────────────
-const DEMO_STOCK = [
-  { id: 1, name: "iPhone 13 Screen", category: "Parts", price: 4500, quantity: 8 },
-  { id: 2, name: "Samsung S21 Battery", category: "Parts", price: 1800, quantity: 15 },
-  { id: 3, name: "Charging Port (Type-C)", category: "Parts", price: 650, quantity: 30 },
-  { id: 4, name: "Screen Repair - iPhone", category: "Service", price: 3500, quantity: 99 },
-  { id: 5, name: "Screen Repair - Samsung", category: "Service", price: 2800, quantity: 99 },
-  { id: 6, name: "Battery Replacement", category: "Service", price: 1200, quantity: 99 },
-  { id: 7, name: "Water Damage Repair", category: "Service", price: 2000, quantity: 99 },
-  { id: 8, name: "Tempered Glass", category: "Accessories", price: 350, quantity: 50 },
-];
-const DEMO_SALES = [
-  { id: 1, items: JSON.stringify([{ name: "Screen Repair - iPhone", qty: 1, price: 3500 }]), total: 3500, customer: "John Kamau", payment: "Mpesa", phone: "0712345678", date: new Date(Date.now() - 172800000).toISOString() },
-  { id: 2, items: JSON.stringify([{ name: "Battery Replacement", qty: 1, price: 1200 }, { name: "Tempered Glass", qty: 1, price: 350 }]), total: 1550, customer: "Mary Wanjiku", payment: "Cash", phone: "0722987654", date: new Date(Date.now() - 86400000).toISOString() },
-  { id: 3, items: JSON.stringify([{ name: "Samsung S21 Battery", qty: 2, price: 1800 }]), total: 3600, customer: "Walk-in", payment: "Cash", phone: "", date: new Date().toISOString() },
-];
-const DEMO_REMINDERS = [
-  { id: 1, text: "Order iPhone 15 screens", due: new Date().toISOString().split("T")[0], done: false },
-  { id: 2, text: "Follow up with John on repair", due: new Date().toISOString().split("T")[0], done: false },
-];
+// ─── EMPTY DEFAULTS (user starts fresh) ─────────────────────────────────────
+const EMPTY_STOCK = [];
+const EMPTY_SALES = [];
+const EMPTY_REMINDERS = [];
 
-// Helper to load from localStorage or fallback to demo
-const loadFromStorage = (key, demoData) => {
+// Helper to load from localStorage or fallback to empty
+const loadFromStorage = (key, emptyData) => {
   const saved = localStorage.getItem(key);
   if (saved) {
     try {
       return JSON.parse(saved);
     } catch (e) {
-      return demoData;
+      return emptyData;
     }
   }
-  return demoData;
+  return emptyData;
 };
 
 // ─── ICONS ───────────────────────────────────────────────────────────────────
@@ -332,9 +316,10 @@ export default function SoftcarePOS() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   
-  const [stock, setStock] = useState(() => loadFromStorage(STORAGE_KEYS.STOCK, DEMO_STOCK));
-  const [sales, setSales] = useState(() => loadFromStorage(STORAGE_KEYS.SALES, DEMO_SALES));
-  const [reminders, setReminders] = useState(() => loadFromStorage(STORAGE_KEYS.REMINDERS, DEMO_REMINDERS));
+  // Load from localStorage or start with empty arrays
+  const [stock, setStock] = useState(() => loadFromStorage(STORAGE_KEYS.STOCK, EMPTY_STOCK));
+  const [sales, setSales] = useState(() => loadFromStorage(STORAGE_KEYS.SALES, EMPTY_SALES));
+  const [reminders, setReminders] = useState(() => loadFromStorage(STORAGE_KEYS.REMINDERS, EMPTY_REMINDERS));
   
   const [cart, setCart] = useState([]);
   const [customer, setCustomer] = useState("");
@@ -344,6 +329,7 @@ export default function SoftcarePOS() {
   const [toast, setToast] = useState(null);
   const [lastSale, setLastSale] = useState(null);
 
+  // Save to localStorage whenever data changes
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.STOCK, JSON.stringify(stock));
   }, [stock]);
@@ -356,6 +342,7 @@ export default function SoftcarePOS() {
     localStorage.setItem(STORAGE_KEYS.REMINDERS, JSON.stringify(reminders));
   }, [reminders]);
 
+  // Detect mobile screen size
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 700);
     checkMobile();
@@ -740,7 +727,7 @@ function Orders({ sales, setSales, showToast }) {
                 <td style={{ color: "#475569", fontSize: 12 }}>{new Date(s.date).toLocaleDateString("en-KE")}</td>
                 <td><span className="badge badge-green">Completed</span></td>
                 <td><button onClick={() => deleteOrder(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", padding: "4px" }}><Icon d={Icons.trash} size={16} /></button></td>
-              </tr>
+              </table>
             );
           })}
         </tbody>
