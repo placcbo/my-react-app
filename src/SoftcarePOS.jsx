@@ -66,7 +66,7 @@ const Icons = {
   check: "M20 6L9 17l-5-5",
   phone: "M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.8a19.79 19.79 0 01-3.07-8.68A2 2 0 012 1h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z",
   eye: "M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8zM12 9a3 3 0 100 6 3 3 0 000-6z",
-  close: "M18 6L6 18M6 6l12 12",
+  pdf: "M4 4v16h16V4H4zm2 2h12v12H6V6zm2 2v8h8V8H8z",
 };
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -89,7 +89,185 @@ const fmtPhone = (p) => {
   return n;
 };
 
-// ─── WHATSAPP & PRINT ────────────────────────────────────────────────────────
+// ─── PROFESSIONAL PRINT RECEIPT (with VAT, QR, barcode) ─────────────────────
+const printReceipt = (sale) => {
+  const items = JSON.parse(sale.items);
+  const receiptNum = "RC" + String(sale.id).slice(-6).toUpperCase();
+  const cashier = "Softcare User";
+  const subTotal = sale.total;
+  const vat = subTotal * 0.16;
+  const total = subTotal + vat;
+
+  const w = window.open("", "_blank", "width=450,height=700");
+  w.document.write(`<!DOCTYPE html>
+  <html>
+  <head>
+    <title>Receipt ${receiptNum}</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        padding: 20px 15px;
+        max-width: 350px;
+        margin: 0 auto;
+        background: white;
+        color: black;
+      }
+      .receipt {
+        border: 1px solid #ccc;
+        padding: 12px;
+        border-radius: 4px;
+      }
+      .header {
+        text-align: center;
+        margin-bottom: 15px;
+        border-bottom: 1px dashed #333;
+        padding-bottom: 10px;
+      }
+      .header h2 {
+        font-size: 18px;
+        letter-spacing: 2px;
+        margin-bottom: 5px;
+      }
+      .header p {
+        font-size: 10px;
+        color: #555;
+        margin: 2px 0;
+      }
+      .divider {
+        border-top: 1px dashed #333;
+        margin: 8px 0;
+      }
+      .row {
+        display: flex;
+        justify-content: space-between;
+        margin: 4px 0;
+      }
+      .items-table {
+        width: 100%;
+        margin: 10px 0;
+        border-collapse: collapse;
+      }
+      .items-table th, .items-table td {
+        padding: 4px 0;
+        text-align: left;
+      }
+      .items-table th {
+        border-bottom: 1px dotted #888;
+        font-size: 10px;
+        text-transform: uppercase;
+      }
+      .total-row {
+        display: flex;
+        justify-content: space-between;
+        font-weight: bold;
+        font-size: 14px;
+        margin-top: 8px;
+        padding-top: 6px;
+        border-top: 2px solid #000;
+      }
+      .text-center { text-align: center; }
+      .small { font-size: 9px; color: #555; }
+      .barcode {
+        letter-spacing: 3px;
+        font-size: 10px;
+        text-align: center;
+        margin: 12px 0;
+        font-family: monospace;
+      }
+      .qr {
+        text-align: center;
+        margin: 10px 0;
+        font-size: 10px;
+      }
+      .footer {
+        text-align: center;
+        margin-top: 15px;
+        font-size: 9px;
+        color: #777;
+      }
+      @media print {
+        body { margin: 0; padding: 0; }
+        .no-print { display: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="receipt">
+      <div class="header">
+        <h2>SOFTCARE SOLUTIONS</h2>
+        <p>Nairobi CBD · +254 700 123 456</p>
+        <p>softcaremobilesolution@gmail.com</p>
+        <p>PIN: P051234567Z</p>
+      </div>
+
+      <div class="row"><span>Receipt No:</span><strong>${receiptNum}</strong></div>
+      <div class="row"><span>Date:</span><span>${new Date(sale.date).toLocaleString("en-KE")}</span></div>
+      <div class="row"><span>Cashier:</span><span>${cashier}</span></div>
+      <div class="row"><span>Customer:</span><strong>${sale.customer}</strong></div>
+      <div class="row"><span>Payment:</span><span>${sale.payment}</span></div>
+      ${sale.phone ? `<div class="row"><span>Phone:</span><span>${sale.phone}</span></div>` : ''}
+
+      <div class="divider"></div>
+
+      <table class="items-table">
+        <thead>
+          <tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr>
+        </thead>
+        <tbody>
+          ${items.map(it => `
+            <tr>
+              <td>${it.name}</td>
+              <td style="text-align:center">${it.qty}</td>
+              <td style="text-align:right">${fmt(it.price)}</td>
+              <td style="text-align:right">${fmt(it.price * it.qty)}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+
+      <div class="divider"></div>
+
+      <div class="row"><span>Subtotal:</span><span>${fmt(subTotal)}</span></div>
+      <div class="row"><span>VAT (16%):</span><span>${fmt(vat)}</span></div>
+      <div class="total-row">
+        <span>TOTAL</span>
+        <span>${fmt(total)}</span>
+      </div>
+      
+      <div class="row"><span>Amount Paid:</span><span>${fmt(total)}</span></div>
+      <div class="row"><span>Change:</span><span>Ksh 0.00</span></div>
+
+      <div class="divider"></div>
+
+      <div class="qr">
+        ⬛⬛⬛⬛⬛⬛⬛⬛⬛<br>
+        ⬛  SCAN ME  ⬛<br>
+        ⬛⬛⬛⬛⬛⬛⬛⬛⬛
+      </div>
+
+      <div class="barcode">| | | | | | | | | | | |</div>
+
+      <div class="footer">
+        Thank you for choosing Softcare!<br>
+        Goods once sold cannot be exchanged or returned.<br>
+        Visit us again 😊
+      </div>
+    </div>
+
+    <script>
+      setTimeout(() => {
+        window.print();
+        setTimeout(() => window.close(), 800);
+      }, 200);
+    <\/script>
+  </body>
+  </html>`);
+  w.document.close();
+};
+
+// ─── WHATSAPP RECEIPT ───────────────────────────────────────────────────────
 const sendWhatsApp = (sale) => {
   if (!sale.phone || sale.phone.trim() === "") {
     alert("No phone number for this customer. Please add a phone number to send WhatsApp receipt.");
@@ -104,84 +282,7 @@ const sendWhatsApp = (sale) => {
   window.open(url, "_blank");
 };
 
-const printReceipt = (sale) => {
-  const items = JSON.parse(sale.items);
-  const receiptNum = "RC" + String(sale.id).slice(-6).toUpperCase();
-  const w = window.open("", "_blank", "width=400,height=600");
-  w.document.write(`<!DOCTYPE html>
-  <html>
-  <head>
-    <title>Receipt ${receiptNum}</title>
-    <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      body {
-        font-family: 'Courier New', monospace;
-        font-size: 12px;
-        padding: 20px 12px;
-        max-width: 300px;
-        margin: 0 auto;
-        background: white;
-        color: black;
-      }
-      .header { text-align: center; margin-bottom: 15px; }
-      .header h2 { font-size: 16px; letter-spacing: 1px; margin-bottom: 3px; }
-      .header p { font-size: 10px; color: #444; margin: 2px 0; }
-      .divider { border-top: 1px dashed #333; margin: 8px 0; }
-      .row { display: flex; justify-content: space-between; margin: 4px 0; }
-      .total-row { display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; margin-top: 8px; padding-top: 6px; border-top: 2px solid #000; }
-      .items-table { width: 100%; margin: 6px 0; }
-      .items-table td { padding: 2px 0; }
-      .text-center { text-align: center; }
-      .small { font-size: 9px; color: #555; }
-      .barcode { letter-spacing: 3px; font-size: 10px; text-align: center; margin: 12px 0 5px; }
-      @media print {
-        body { margin: 0; padding: 10px; }
-        .no-print { display: none; }
-      }
-    </style>
-  </head>
-  <body>
-    <div class="header">
-      <h2>SOFTCARE SOLUTIONS</h2>
-      <p>Nairobi CBD · +254 700 123 456</p>
-      <p>softcaremobilesolution@gmail.com</p>
-    </div>
-    <div class="divider"></div>
-    <div class="row"><span>Receipt:</span><strong>${receiptNum}</strong></div>
-    <div class="row"><span>Date:</span><span>${new Date(sale.date).toLocaleString("en-KE")}</span></div>
-    <div class="row"><span>Customer:</span><strong>${sale.customer}</strong></div>
-    <div class="row"><span>Payment:</span><span>${sale.payment}</span></div>
-    <div class="divider"></div>
-    <table class="items-table">
-      ${items.map(it => `
-        <tr>
-          <td>${it.name} ×${it.qty}</td>
-          <td style="text-align:right;">Ksh ${(it.price * it.qty).toLocaleString()}</td>
-        </tr>
-      `).join("")}
-    </table>
-    <div class="total-row">
-      <span>TOTAL</span>
-      <span>Ksh ${Number(sale.total).toLocaleString()}</span>
-    </div>
-    <div class="divider"></div>
-    <div class="text-center small">
-      Thank you for choosing Softcare!<br>
-      Come back soon 😊
-    </div>
-    <div class="barcode">| | | | | | | | | |</div>
-    <script>
-      setTimeout(() => {
-        window.print();
-        setTimeout(() => window.close(), 800);
-      }, 200);
-    <\/script>
-  </body>
-  </html>`);
-  w.document.close();
-};
-
-// ─── RECEIPT CARD (reusable) ────────────────────────────────────────────────
+// ─── RECEIPT CARD (with PDF button) ─────────────────────────────────────────
 function ReceiptCard({ sale, onClose }) {
   const items = JSON.parse(sale.items);
   const receiptNum = "RC" + String(sale.id).slice(-6).toUpperCase();
@@ -214,6 +315,9 @@ function ReceiptCard({ sale, onClose }) {
         <button onClick={() => printReceipt(sale)} style={{ flex: 1.2, padding: "9px 0", borderRadius: 8, border: "none", background: "#2563eb", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
           <Icon d={Icons.print} size={15} /> Print
         </button>
+        <button onClick={() => printReceipt(sale)} style={{ flex: 1.2, padding: "9px 0", borderRadius: 8, border: "none", background: "#dc2626", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+          <Icon d={Icons.pdf} size={15} /> PDF
+        </button>
         <button onClick={() => sendWhatsApp(sale)} style={{ flex: 1.4, padding: "9px 0", borderRadius: 8, border: "none", background: "#16a34a", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
           <Icon d={Icons.whatsapp} size={15} /> WhatsApp
         </button>
@@ -228,7 +332,6 @@ export default function SoftcarePOS() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   
-  // Load from localStorage on initial render
   const [stock, setStock] = useState(() => loadFromStorage(STORAGE_KEYS.STOCK, DEMO_STOCK));
   const [sales, setSales] = useState(() => loadFromStorage(STORAGE_KEYS.SALES, DEMO_SALES));
   const [reminders, setReminders] = useState(() => loadFromStorage(STORAGE_KEYS.REMINDERS, DEMO_REMINDERS));
@@ -241,7 +344,6 @@ export default function SoftcarePOS() {
   const [toast, setToast] = useState(null);
   const [lastSale, setLastSale] = useState(null);
 
-  // Save to localStorage whenever stock, sales, or reminders change
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.STOCK, JSON.stringify(stock));
   }, [stock]);
@@ -254,7 +356,6 @@ export default function SoftcarePOS() {
     localStorage.setItem(STORAGE_KEYS.REMINDERS, JSON.stringify(reminders));
   }, [reminders]);
 
-  // Detect mobile screen size
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 700);
     checkMobile();
@@ -397,12 +498,8 @@ export default function SoftcarePOS() {
         .modal-enter{animation:slideUp .25s cubic-bezier(.2,.8,.2,1)}
       `}</style>
 
-      {/* SIDEBAR with overlay for mobile */}
       {isMobile && sidebarOpen && (
-        <div
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 40 }}
-          onClick={() => setSidebarOpen(false)}
-        />
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 40 }} onClick={() => setSidebarOpen(false)} />
       )}
       <div style={{
         width: 230,
@@ -425,8 +522,7 @@ export default function SoftcarePOS() {
           <div style={{ color: "rgba(255,255,255,.55)", fontSize: 11 }}>MOBILE SOLUTION</div>
         </div>
         {navItems.map(n => (
-          <div key={n.id} className={`nav-item ${page === n.id ? "active" : ""}`}
-            onClick={() => { setPage(n.id); if (isMobile) setSidebarOpen(false); }}>
+          <div key={n.id} className={`nav-item ${page === n.id ? "active" : ""}`} onClick={() => { setPage(n.id); if (isMobile) setSidebarOpen(false); }}>
             <Icon d={Icons[n.icon]} size={17} />{n.label}
           </div>
         ))}
@@ -436,15 +532,10 @@ export default function SoftcarePOS() {
         </div>
       </div>
 
-      {/* MAIN */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {/* topbar with mobile menu button */}
         <div style={{ background: "#1e293b", padding: "14px 24px", display: "flex", alignItems: "center", gap: 16, borderBottom: "1px solid #334155", flexShrink: 0 }}>
           {isMobile && (
-            <button
-              onClick={() => setSidebarOpen(true)}
-              style={{ background: "none", border: "none", color: "#e2e8f0", cursor: "pointer", display: "flex", alignItems: "center" }}
-            >
+            <button onClick={() => setSidebarOpen(true)} style={{ background: "none", border: "none", color: "#e2e8f0", cursor: "pointer", display: "flex", alignItems: "center" }}>
               <Icon d={Icons.menu} size={22} />
             </button>
           )}
@@ -457,7 +548,6 @@ export default function SoftcarePOS() {
           </div>
         </div>
 
-        {/* content */}
         <div style={{ flex: 1, overflow: "auto", padding: 24 }} className="page-enter" key={page}>
           {page === "dashboard" && <Dashboard sales={sales} stock={stock} todayRevenue={todayRevenue} totalRevenue={totalRevenue} lowStock={lowStock} reminders={reminders} setPage={setPage} />}
           {page === "pos" && <POS stock={stock} cart={cart} addToCart={addToCart} removeFromCart={removeFromCart} cartTotal={cartTotal} customer={customer} setCustomer={setCustomer} phone={phone} setPhone={setPhone} payment={payment} setPayment={setPayment} completeSale={completeSale} searchQ={searchQ} setSearchQ={setSearchQ} />}
@@ -470,7 +560,6 @@ export default function SoftcarePOS() {
         </div>
       </div>
 
-      {/* POST-SALE RECEIPT MODAL */}
       {lastSale && (
         <div className="overlay" onClick={() => setLastSale(null)}>
           <div className="modal-enter" onClick={e => e.stopPropagation()} style={{ width: "100%", maxWidth: 420 }}>
@@ -486,7 +575,6 @@ export default function SoftcarePOS() {
         </div>
       )}
 
-      {/* TOAST */}
       {toast && (
         <div style={{ position: "fixed", bottom: 24, right: 24, background: toast.ok ? "#16a34a" : "#dc2626", color: "#fff", padding: "12px 20px", borderRadius: 10, fontWeight: 600, fontSize: 14, zIndex: 300, boxShadow: "0 8px 30px rgba(0,0,0,.4)", animation: "fadeUp .2s ease" }}>
           {toast.msg}
@@ -538,23 +626,16 @@ function Dashboard({ sales, stock, todayRevenue, totalRevenue, lowStock, reminde
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div className="card">
-            <div style={{ fontWeight: 700, fontSize: 15, color: "#f1f5f9", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ color: "#fb923c" }}>⚠</span> Low Stock
-            </div>
-            {lowStock.length === 0
-              ? <div style={{ color: "#475569", fontSize: 13 }}>All stock levels good ✓</div>
-              : lowStock.map(s => (
-                <div key={s.id} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: "1px solid #334155", fontSize: 14 }}>
-                  <span style={{ color: "#cbd5e1" }}>{s.name}</span>
-                  <span className="badge badge-orange">{s.quantity} left</span>
-                </div>
-              ))
-            }
+            <div style={{ fontWeight: 700, fontSize: 15, color: "#f1f5f9", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>⚠ Low Stock</div>
+            {lowStock.length === 0 ? <div style={{ color: "#475569", fontSize: 13 }}>All stock levels good ✓</div> : lowStock.map(s => (
+              <div key={s.id} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: "1px solid #334155", fontSize: 14 }}>
+                <span style={{ color: "#cbd5e1" }}>{s.name}</span>
+                <span className="badge badge-orange">{s.quantity} left</span>
+              </div>
+            ))}
           </div>
           <div className="card">
-            <div style={{ fontWeight: 700, fontSize: 15, color: "#f1f5f9", marginBottom: 12 }}>
-              🔔 Reminders ({reminders.filter(r => !r.done).length})
-            </div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: "#f1f5f9", marginBottom: 12 }}>🔔 Reminders ({reminders.filter(r => !r.done).length})</div>
             {reminders.filter(r => !r.done).slice(0, 4).map(r => (
               <div key={r.id} style={{ fontSize: 13, color: "#94a3b8", padding: "5px 0", borderBottom: "1px solid #334155" }}>• {r.text}</div>
             ))}
@@ -569,19 +650,13 @@ function Dashboard({ sales, stock, todayRevenue, totalRevenue, lowStock, reminde
 function POS({ stock, cart, addToCart, removeFromCart, cartTotal, customer, setCustomer, phone, setPhone, payment, setPayment, completeSale, searchQ, setSearchQ }) {
   const [cat, setCat] = useState("All");
   const categories = ["All", ...new Set(stock.map(s => s.category))];
-  const shown = stock.filter(s =>
-    s.name.toLowerCase().includes(searchQ.toLowerCase()) &&
-    s.quantity > 0 &&
-    (cat === "All" || s.category === cat)
-  );
+  const shown = stock.filter(s => s.name.toLowerCase().includes(searchQ.toLowerCase()) && s.quantity > 0 && (cat === "All" || s.category === cat));
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 20, height: "calc(100vh - 130px)" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 12, overflow: "hidden" }}>
         <div style={{ position: "relative" }}>
-          <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#475569" }}>
-            <Icon d={Icons.search} size={16} />
-          </span>
+          <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#475569" }}><Icon d={Icons.search} size={16} /></span>
           <input className="input" placeholder="Search items…" value={searchQ} onChange={e => setSearchQ(e.target.value)} style={{ paddingLeft: 36 }} />
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -605,16 +680,11 @@ function POS({ stock, cart, addToCart, removeFromCart, cartTotal, customer, setC
         </div>
       </div>
 
-      {/* CART */}
       <div className="card" style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, color: "#f1f5f9", display: "flex", alignItems: "center", gap: 8 }}>
-          🛒 Cart {cart.length > 0 && <span className="badge badge-blue" style={{ fontSize: 11 }}>{cart.length}</span>}
-        </div>
+        <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12, color: "#f1f5f9", display: "flex", alignItems: "center", gap: 8 }}>🛒 Cart {cart.length > 0 && <span className="badge badge-blue" style={{ fontSize: 11 }}>{cart.length}</span>}</div>
         <input className="input" placeholder="Customer name (optional)" value={customer} onChange={e => setCustomer(e.target.value)} style={{ marginBottom: 8 }} />
         <div style={{ position: "relative", marginBottom: 12 }}>
-          <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#475569" }}>
-            <Icon d={Icons.phone} size={14} />
-          </span>
+          <span style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#475569" }}><Icon d={Icons.phone} size={14} /></span>
           <input className="input" placeholder="Phone for WhatsApp (e.g. 0712…)" value={phone} onChange={e => setPhone(e.target.value)} style={{ paddingLeft: 32 }} />
         </div>
         <div style={{ flex: 1, overflow: "auto", marginBottom: 12 }}>
@@ -626,25 +696,18 @@ function POS({ stock, cart, addToCart, removeFromCart, cartTotal, customer, setC
                 <div style={{ fontSize: 12, color: "#475569" }}>{fmt(item.price)} × {item.qty}</div>
               </div>
               <div style={{ fontWeight: 700, fontSize: 13, color: "#f1f5f9" }}>{fmt(item.price * item.qty)}</div>
-              <button onClick={() => removeFromCart(item.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626" }}>
-                <Icon d={Icons.x} size={15} />
-              </button>
+              <button onClick={() => removeFromCart(item.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626" }}><Icon d={Icons.x} size={15} /></button>
             </div>
           ))}
         </div>
         <div style={{ borderTop: "1px solid #334155", paddingTop: 14 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
-            <span style={{ fontWeight: 600, color: "#64748b" }}>Total</span>
-            <span style={{ fontWeight: 800, fontSize: 22, color: "#4ade80" }}>{fmt(cartTotal)}</span>
-          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}><span style={{ fontWeight: 600, color: "#64748b" }}>Total</span><span style={{ fontWeight: 800, fontSize: 22, color: "#4ade80" }}>{fmt(cartTotal)}</span></div>
           <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
             {["Cash", "Mpesa", "Card"].map(p => (
               <button key={p} className="btn" style={{ flex: 1, fontSize: 12, padding: "7px 0", background: payment === p ? "#2563eb" : "#0f172a", color: payment === p ? "#fff" : "#64748b", border: "1px solid #334155" }} onClick={() => setPayment(p)}>{p}</button>
             ))}
           </div>
-          <button className="btn btn-success" style={{ width: "100%", padding: 13, fontSize: 15 }} onClick={completeSale}>
-            Complete Sale ✓
-          </button>
+          <button className="btn btn-success" style={{ width: "100%", padding: 13, fontSize: 15 }} onClick={completeSale}>Complete Sale ✓</button>
         </div>
       </div>
     </div>
@@ -659,14 +722,11 @@ function Orders({ sales, setSales, showToast }) {
       showToast("Order deleted", true);
     }
   };
-
   return (
     <div className="card">
       <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: "#f1f5f9" }}>All Orders ({sales.length})</div>
       <table className="table">
-        <thead>
-          <tr><th>#</th><th>Customer</th><th>Items</th><th>Total</th><th>Payment</th><th>Date</th><th>Status</th><th></th></tr>
-        </thead>
+        <thead><tr><th>#</th><th>Customer</th><th>Items</th><th>Total</th><th>Payment</th><th>Date</th><th>Status</th><th></th></tr></thead>
         <tbody>
           {sales.map((s, i) => {
             const items = JSON.parse(s.items);
@@ -679,11 +739,7 @@ function Orders({ sales, setSales, showToast }) {
                 <td><span className={`badge ${s.payment === "Mpesa" ? "badge-blue" : s.payment === "Card" ? "badge-orange" : "badge-gray"}`}>{s.payment}</span></td>
                 <td style={{ color: "#475569", fontSize: 12 }}>{new Date(s.date).toLocaleDateString("en-KE")}</td>
                 <td><span className="badge badge-green">Completed</span></td>
-                <td>
-                  <button onClick={() => deleteOrder(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", padding: "4px" }}>
-                    <Icon d={Icons.trash} size={16} />
-                  </button>
-                </td>
+                <td><button onClick={() => deleteOrder(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", padding: "4px" }}><Icon d={Icons.trash} size={16} /></button></td>
               </tr>
             );
           })}
@@ -696,7 +752,6 @@ function Orders({ sales, setSales, showToast }) {
 // ─── INVOICES (with delete) ─────────────────────────────────────────────────
 function Invoices({ sales, setSales, showToast }) {
   const [selected, setSelected] = useState(null);
-
   const deleteInvoice = (id) => {
     if (window.confirm("Delete this invoice permanently?")) {
       setSales(sales.filter(s => s.id !== id));
@@ -704,38 +759,18 @@ function Invoices({ sales, setSales, showToast }) {
       if (selected && selected.id === id) setSelected(null);
     }
   };
-
   if (selected) {
     const items = JSON.parse(selected.items);
     const invoiceNum = "INV" + String(selected.id).slice(-6).toUpperCase();
     return (
       <div className="card" style={{ maxWidth: 600, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 20 }}>
-          <div>
-            <div style={{ fontWeight: 800, fontSize: 22, color: "#60a5fa" }}>SOFTCARE SOLUTIONS</div>
-            <div style={{ color: "#64748b", fontSize: 13 }}>Nairobi CBD · +254 700 123 456</div>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ fontWeight: 700, fontSize: 16, color: "#f1f5f9" }}>INVOICE</div>
-            <div style={{ color: "#64748b", fontSize: 13 }}>{invoiceNum}</div>
-            <div style={{ color: "#64748b", fontSize: 13 }}>{new Date(selected.date).toLocaleDateString("en-KE")}</div>
-          </div>
+          <div><div style={{ fontWeight: 800, fontSize: 22, color: "#60a5fa" }}>SOFTCARE SOLUTIONS</div><div style={{ color: "#64748b", fontSize: 13 }}>Nairobi CBD · +254 700 123 456</div></div>
+          <div style={{ textAlign: "right" }}><div style={{ fontWeight: 700, fontSize: 16, color: "#f1f5f9" }}>INVOICE</div><div style={{ color: "#64748b", fontSize: 13 }}>{invoiceNum}</div><div style={{ color: "#64748b", fontSize: 13 }}>{new Date(selected.date).toLocaleDateString("en-KE")}</div></div>
         </div>
-        <div style={{ marginBottom: 16, padding: 14, background: "#0f172a", borderRadius: 8, border: "1px solid #334155" }}>
-          <div style={{ fontWeight: 600, marginBottom: 4, color: "#94a3b8", fontSize: 12, textTransform: "uppercase" }}>Bill To</div>
-          <div style={{ color: "#e2e8f0", fontWeight: 600 }}>{selected.customer}</div>
-          {selected.phone && <div style={{ color: "#64748b", fontSize: 13 }}>{selected.phone}</div>}
-        </div>
-        <table className="table">
-          <thead><tr><th>Item</th><th>Qty</th><th>Unit Price</th><th>Total</th></tr></thead>
-          <tbody>
-            {items.map((it, i) => <tr key={i}><td>{it.name}</td><td>{it.qty}</td><td>{fmt(it.price)}</td><td style={{ fontWeight: 600, color: "#4ade80" }}>{fmt(it.price * it.qty)}</td></tr>)}
-          </tbody>
-        </table>
-        <div style={{ marginTop: 16, textAlign: "right" }}>
-          <div style={{ fontSize: 18, fontWeight: 800, color: "#4ade80" }}>Total: {fmt(selected.total)}</div>
-          <div style={{ color: "#64748b", fontSize: 13, marginTop: 4 }}>Paid via {selected.payment}</div>
-        </div>
+        <div style={{ marginBottom: 16, padding: 14, background: "#0f172a", borderRadius: 8, border: "1px solid #334155" }}><div style={{ fontWeight: 600, marginBottom: 4, color: "#94a3b8", fontSize: 12, textTransform: "uppercase" }}>Bill To</div><div style={{ color: "#e2e8f0", fontWeight: 600 }}>{selected.customer}</div>{selected.phone && <div style={{ color: "#64748b", fontSize: 13 }}>{selected.phone}</div>}</div>
+        <table className="table"><thead><tr><th>Item</th><th>Qty</th><th>Unit Price</th><th>Total</th></tr></thead><tbody>{items.map((it, i) => <tr key={i}><td>{it.name}</td><td>{it.qty}</td><td>{fmt(it.price)}</td><td style={{ fontWeight: 600, color: "#4ade80" }}>{fmt(it.price * it.qty)}</td></tr>)}</tbody></table>
+        <div style={{ marginTop: 16, textAlign: "right" }}><div style={{ fontSize: 18, fontWeight: 800, color: "#4ade80" }}>Total: {fmt(selected.total)}</div><div style={{ color: "#64748b", fontSize: 13, marginTop: 4 }}>Paid via {selected.payment}</div></div>
         <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
           <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setSelected(null)}>← Back</button>
           <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => printReceipt(selected)}>🖨️ Print</button>
@@ -745,30 +780,11 @@ function Invoices({ sales, setSales, showToast }) {
       </div>
     );
   }
-
   return (
     <div className="card">
       <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: "#f1f5f9" }}>Invoices ({sales.length})</div>
-      <table className="table">
-        <thead><tr><th>Invoice #</th><th>Customer</th><th>Amount</th><th>Date</th><th>Actions</th></tr></thead>
-        <tbody>
-          {sales.map((s, i) => (
-            <tr key={s.id}>
-              <td style={{ fontWeight: 600, color: "#60a5fa" }}>INV{String(i + 1).padStart(4, "0")}</td>
-              <td style={{ color: "#e2e8f0" }}>{s.customer}</td>
-              <td style={{ fontWeight: 700, color: "#4ade80" }}>{fmt(s.total)}</td>
-              <td style={{ color: "#475569", fontSize: 13 }}>{new Date(s.date).toLocaleDateString("en-KE")}</td>
-              <td style={{ display: "flex", gap: 6 }}>
-                <button className="btn btn-ghost" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => setSelected(s)}>View</button>
-                <button className="btn btn-wa" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => sendWhatsApp(s)}><Icon d={Icons.whatsapp} size={13} /></button>
-                <button onClick={() => deleteInvoice(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", padding: "5px 10px" }}>
-                  <Icon d={Icons.trash} size={14} />
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <table className="table"><thead><tr><th>Invoice #</th><th>Customer</th><th>Amount</th><th>Date</th><th>Actions</th></tr></thead><tbody>{sales.map((s, i) => (
+        <tr key={s.id}><td style={{ fontWeight: 600, color: "#60a5fa" }}>INV{String(i + 1).padStart(4, "0")}</td><td style={{ color: "#e2e8f0" }}>{s.customer}</td><td style={{ fontWeight: 700, color: "#4ade80" }}>{fmt(s.total)}</td><td style={{ color: "#475569", fontSize: 13 }}>{new Date(s.date).toLocaleDateString("en-KE")}</td><td style={{ display: "flex", gap: 6 }}><button className="btn btn-ghost" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => setSelected(s)}>View</button><button className="btn btn-wa" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => sendWhatsApp(s)}><Icon d={Icons.whatsapp} size={13} /></button><button onClick={() => deleteInvoice(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", padding: "5px 10px" }}><Icon d={Icons.trash} size={14} /></button></td></tr>))}</tbody></table>
     </div>
   );
 }
@@ -776,7 +792,6 @@ function Invoices({ sales, setSales, showToast }) {
 // ─── RECEIPTS (with delete) ─────────────────────────────────────────────────
 function Receipts({ sales, setSales, showToast }) {
   const [selected, setSelected] = useState(null);
-
   const deleteReceipt = (id) => {
     if (window.confirm("Delete this receipt permanently?")) {
       setSales(sales.filter(s => s.id !== id));
@@ -784,203 +799,61 @@ function Receipts({ sales, setSales, showToast }) {
       if (selected && selected.id === id) setSelected(null);
     }
   };
-
   if (selected) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 16, alignItems: "center" }}>
-        <div style={{ width: "100%", maxWidth: 420 }}>
-          <button className="btn btn-ghost" style={{ marginBottom: 16 }} onClick={() => setSelected(null)}>← Back to receipts</button>
-          <ReceiptCard sale={selected} onClose={() => setSelected(null)} />
-          <button className="btn btn-danger" style={{ marginTop: 12, width: "100%" }} onClick={() => deleteReceipt(selected.id)}>
-            Delete Receipt
-          </button>
-        </div>
+        <div style={{ width: "100%", maxWidth: 420 }}><button className="btn btn-ghost" style={{ marginBottom: 16 }} onClick={() => setSelected(null)}>← Back to receipts</button><ReceiptCard sale={selected} onClose={() => setSelected(null)} /><button className="btn btn-danger" style={{ marginTop: 12, width: "100%" }} onClick={() => deleteReceipt(selected.id)}>Delete Receipt</button></div>
       </div>
     );
   }
-
   return (
     <div className="card">
       <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: "#f1f5f9" }}>Receipt History ({sales.length})</div>
-      <table className="table">
-        <thead><tr><th>Receipt #</th><th>Customer</th><th>Amount</th><th>Payment</th><th>Date</th><th>Actions</th></tr></thead>
-        <tbody>
-          {sales.map((s, i) => (
-            <tr key={s.id}>
-              <td style={{ fontWeight: 600, color: "#94a3b8" }}>RC{String(i + 1).padStart(4, "0")}</td>
-              <td style={{ fontWeight: 600, color: "#e2e8f0" }}>{s.customer}</td>
-              <td style={{ fontWeight: 700, color: "#4ade80" }}>{fmt(s.total)}</td>
-              <td><span className={`badge ${s.payment === "Mpesa" ? "badge-blue" : "badge-gray"}`}>{s.payment}</span></td>
-              <td style={{ color: "#475569", fontSize: 13 }}>{new Date(s.date).toLocaleDateString("en-KE")}</td>
-              <td>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <button className="btn btn-ghost" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => setSelected(s)}>
-                    <Icon d={Icons.eye} size={13} />
-                  </button>
-                  <button className="btn btn-primary" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => printReceipt(s)}>
-                    <Icon d={Icons.print} size={13} />
-                  </button>
-                  <button className="btn btn-wa" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => sendWhatsApp(s)}>
-                    <Icon d={Icons.whatsapp} size={13} />
-                  </button>
-                  <button onClick={() => deleteReceipt(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", padding: "5px 10px" }}>
-                    <Icon d={Icons.trash} size={14} />
-                  </button>
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <table className="table"><thead><tr><th>Receipt #</th><th>Customer</th><th>Amount</th><th>Payment</th><th>Date</th><th>Actions</th></tr></thead><tbody>{sales.map((s, i) => (
+        <tr key={s.id}><td style={{ fontWeight: 600, color: "#94a3b8" }}>RC{String(i + 1).padStart(4, "0")}</td><td style={{ fontWeight: 600, color: "#e2e8f0" }}>{s.customer}</td><td style={{ fontWeight: 700, color: "#4ade80" }}>{fmt(s.total)}</td><td><span className={`badge ${s.payment === "Mpesa" ? "badge-blue" : "badge-gray"}`}>{s.payment}</span></td><td style={{ color: "#475569", fontSize: 13 }}>{new Date(s.date).toLocaleDateString("en-KE")}</td><td><div style={{ display: "flex", gap: 6 }}><button className="btn btn-ghost" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => setSelected(s)}><Icon d={Icons.eye} size={13} /></button><button className="btn btn-primary" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => printReceipt(s)}><Icon d={Icons.print} size={13} /></button><button className="btn btn-wa" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => sendWhatsApp(s)}><Icon d={Icons.whatsapp} size={13} /></button><button onClick={() => deleteReceipt(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", padding: "5px 10px" }}><Icon d={Icons.trash} size={14} /></button></div></td></tr>))}</tbody></table>
     </div>
   );
 }
 
-// ─── REPORTS (unchanged) ────────────────────────────────────────────────────
+// ─── REPORTS ─────────────────────────────────────────────────────────────────
 function Reports({ sales }) {
   const byPayment = sales.reduce((a, s) => { a[s.payment] = (a[s.payment] || 0) + s.total; return a; }, {});
-  const topItems = Object.entries(
-    sales.flatMap(s => JSON.parse(s.items)).reduce((a, x) => { a[x.name] = (a[x.name] || 0) + x.qty; return a; }, {})
-  ).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const topItems = Object.entries(sales.flatMap(s => JSON.parse(s.items)).reduce((a, x) => { a[x.name] = (a[x.name] || 0) + x.qty; return a; }, {})).sort((a, b) => b[1] - a[1]).slice(0, 5);
   const byDay = sales.reduce((a, s) => { const d = s.date?.split("T")[0]; a[d] = (a[d] || 0) + s.total; return a; }, {});
   const totalRev = sales.reduce((a, s) => a + s.total, 0);
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-        <div className="card">
-          <div style={{ fontWeight: 700, marginBottom: 16, color: "#f1f5f9" }}>Revenue by Payment</div>
-          {Object.entries(byPayment).map(([k, v]) => (
-            <div key={k} style={{ marginBottom: 14 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 14 }}>
-                <span style={{ fontWeight: 500, color: "#cbd5e1" }}>{k}</span>
-                <span style={{ fontWeight: 700, color: "#4ade80" }}>{fmt(v)}</span>
-              </div>
-              <div style={{ height: 7, background: "#0f172a", borderRadius: 4 }}>
-                <div style={{ height: "100%", borderRadius: 4, background: k === "Mpesa" ? "#3b82f6" : k === "Cash" ? "#22c55e" : "#8b5cf6", width: `${(v / totalRev) * 100}%`, transition: "width .5s" }} />
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="card">
-          <div style={{ fontWeight: 700, marginBottom: 16, color: "#f1f5f9" }}>Top Selling Items</div>
-          {topItems.map(([name, qty], i) => (
-            <div key={name} style={{ display: "flex", justifyContent: "space-between", padding: "9px 0", borderBottom: "1px solid #334155", fontSize: 14 }}>
-              <span style={{ display: "flex", gap: 10, alignItems: "center", color: "#cbd5e1" }}>
-                <span style={{ background: "rgba(37,99,235,.3)", color: "#93c5fd", width: 22, height: 22, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700 }}>{i + 1}</span>
-                {name}
-              </span>
-              <span className="badge badge-blue">{qty} sold</span>
-            </div>
-          ))}
-        </div>
+        <div className="card"><div style={{ fontWeight: 700, marginBottom: 16, color: "#f1f5f9" }}>Revenue by Payment</div>{Object.entries(byPayment).map(([k, v]) => (<div key={k} style={{ marginBottom: 14 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 14 }}><span style={{ fontWeight: 500, color: "#cbd5e1" }}>{k}</span><span style={{ fontWeight: 700, color: "#4ade80" }}>{fmt(v)}</span></div><div style={{ height: 7, background: "#0f172a", borderRadius: 4 }}><div style={{ height: "100%", borderRadius: 4, background: k === "Mpesa" ? "#3b82f6" : k === "Cash" ? "#22c55e" : "#8b5cf6", width: `${(v / totalRev) * 100}%`, transition: "width .5s" }} /></div></div>))}</div>
+        <div className="card"><div style={{ fontWeight: 700, marginBottom: 16, color: "#f1f5f9" }}>Top Selling Items</div>{topItems.map(([name, qty], i) => (<div key={name} style={{ display: "flex", justifyContent: "space-between", padding: "9px 0", borderBottom: "1px solid #334155", fontSize: 14 }}><span style={{ display: "flex", gap: 10, alignItems: "center", color: "#cbd5e1" }}><span style={{ background: "rgba(37,99,235,.3)", color: "#93c5fd", width: 22, height: 22, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700 }}>{i + 1}</span>{name}</span><span className="badge badge-blue">{qty} sold</span></div>))}</div>
       </div>
-      <div className="card">
-        <div style={{ fontWeight: 700, marginBottom: 16, color: "#f1f5f9" }}>Daily Revenue</div>
-        <div style={{ display: "flex", gap: 8, alignItems: "flex-end", height: 140 }}>
-          {Object.entries(byDay).slice(-7).map(([d, v]) => {
-            const max = Math.max(...Object.values(byDay));
-            return (
-              <div key={d} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                <div style={{ fontSize: 10, fontWeight: 600, color: "#60a5fa" }}>{(v / 1000).toFixed(1)}k</div>
-                <div style={{ width: "100%", background: "#3b82f6", borderRadius: "4px 4px 0 0", height: `${(v / max) * 100}px`, minHeight: 4 }} />
-                <div style={{ fontSize: 10, color: "#475569" }}>{d.slice(5)}</div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      <div className="card"><div style={{ fontWeight: 700, marginBottom: 16, color: "#f1f5f9" }}>Daily Revenue</div><div style={{ display: "flex", gap: 8, alignItems: "flex-end", height: 140 }}>{Object.entries(byDay).slice(-7).map(([d, v]) => { const max = Math.max(...Object.values(byDay)); return (<div key={d} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}><div style={{ fontSize: 10, fontWeight: 600, color: "#60a5fa" }}>{(v / 1000).toFixed(1)}k</div><div style={{ width: "100%", background: "#3b82f6", borderRadius: "4px 4px 0 0", height: `${(v / max) * 100}px`, minHeight: 4 }} /><div style={{ fontSize: 10, color: "#475569" }}>{d.slice(5)}</div></div>); })}</div></div>
     </div>
   );
 }
 
-// ─── STOCK (unchanged) ──────────────────────────────────────────────────────
+// ─── STOCK ───────────────────────────────────────────────────────────────────
 function Stock({ stock, addStockItem, deleteStockItem, showToast }) {
   const [form, setForm] = useState({ name: "", category: "Parts", price: "", quantity: "" });
   const [adding, setAdding] = useState(false);
-  const submit = () => {
-    if (!form.name || !form.price || !form.quantity) return showToast("Fill all fields", false);
-    addStockItem({ ...form, price: Number(form.price), quantity: Number(form.quantity) });
-    setForm({ name: "", category: "Parts", price: "", quantity: "" });
-    setAdding(false);
-  };
+  const submit = () => { if (!form.name || !form.price || !form.quantity) return showToast("Fill all fields", false); addStockItem({ ...form, price: Number(form.price), quantity: Number(form.quantity) }); setForm({ name: "", category: "Parts", price: "", quantity: "" }); setAdding(false); };
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ fontWeight: 700, fontSize: 17, color: "#f1f5f9" }}>Stock Management</div>
-        <button className="btn btn-primary" onClick={() => setAdding(a => !a)}>+ Add Item</button>
-      </div>
-      {adding && (
-        <div className="card" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr auto", gap: 10, alignItems: "end" }}>
-          <div><label style={{ fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".05em", display: "block", marginBottom: 6 }}>Item Name</label><input className="input" placeholder="e.g. iPhone 14 Screen" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div>
-          <div><label style={{ fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".05em", display: "block", marginBottom: 6 }}>Category</label>
-            <select className="input" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
-              {["Parts", "Service", "Accessories"].map(c => <option key={c}>{c}</option>)}
-            </select>
-          </div>
-          <div><label style={{ fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".05em", display: "block", marginBottom: 6 }}>Price (Ksh)</label><input className="input" type="number" placeholder="0" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} /></div>
-          <div><label style={{ fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".05em", display: "block", marginBottom: 6 }}>Quantity</label><input className="input" type="number" placeholder="0" value={form.quantity} onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))} /></div>
-          <button className="btn btn-success" style={{ padding: "9px 16px" }} onClick={submit}>Add</button>
-        </div>
-      )}
-      <div className="card">
-        <table className="table">
-          <thead><tr><th>Item Name</th><th>Category</th><th>Price</th><th>Qty</th><th>Status</th><th></th></tr></thead>
-          <tbody>
-            {stock.map(s => (
-              <tr key={s.id}>
-                <td style={{ fontWeight: 600, color: "#e2e8f0" }}>{s.name}</td>
-                <td><span className="badge badge-gray">{s.category}</span></td>
-                <td style={{ fontWeight: 700, color: "#f1f5f9" }}>{fmt(s.price)}</td>
-                <td style={{ fontWeight: 600, color: s.quantity < 5 ? "#fb923c" : "#4ade80" }}>{s.quantity}</td>
-                <td><span className={`badge ${s.quantity === 0 ? "badge-orange" : s.quantity < 5 ? "badge-orange" : "badge-green"}`}>{s.quantity === 0 ? "Out of stock" : s.quantity < 5 ? "Low" : "Good"}</span></td>
-                <td><button onClick={() => deleteStockItem(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", padding: 4 }}><Icon d={Icons.trash} size={15} /></button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><div style={{ fontWeight: 700, fontSize: 17, color: "#f1f5f9" }}>Stock Management</div><button className="btn btn-primary" onClick={() => setAdding(a => !a)}>+ Add Item</button></div>
+      {adding && (<div className="card" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr auto", gap: 10, alignItems: "end" }}><div><label style={{ fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".05em", display: "block", marginBottom: 6 }}>Item Name</label><input className="input" placeholder="e.g. iPhone 14 Screen" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} /></div><div><label style={{ fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".05em", display: "block", marginBottom: 6 }}>Category</label><select className="input" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>{["Parts", "Service", "Accessories"].map(c => <option key={c}>{c}</option>)}</select></div><div><label style={{ fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".05em", display: "block", marginBottom: 6 }}>Price (Ksh)</label><input className="input" type="number" placeholder="0" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} /></div><div><label style={{ fontSize: 11, color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".05em", display: "block", marginBottom: 6 }}>Quantity</label><input className="input" type="number" placeholder="0" value={form.quantity} onChange={e => setForm(f => ({ ...f, quantity: e.target.value }))} /></div><button className="btn btn-success" style={{ padding: "9px 16px" }} onClick={submit}>Add</button></div>)}
+      <div className="card"><table className="table"><thead><tr><th>Item Name</th><th>Category</th><th>Price</th><th>Qty</th><th>Status</th><th></th></tr></thead><tbody>{stock.map(s => (<tr key={s.id}><td style={{ fontWeight: 600, color: "#e2e8f0" }}>{s.name}</td><td><span className="badge badge-gray">{s.category}</span></td><td style={{ fontWeight: 700, color: "#f1f5f9" }}>{fmt(s.price)}</td><td style={{ fontWeight: 600, color: s.quantity < 5 ? "#fb923c" : "#4ade80" }}>{s.quantity}</td><td><span className={`badge ${s.quantity === 0 ? "badge-orange" : s.quantity < 5 ? "badge-orange" : "badge-green"}`}>{s.quantity === 0 ? "Out of stock" : s.quantity < 5 ? "Low" : "Good"}</span></td><td><button onClick={() => deleteStockItem(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", padding: 4 }}><Icon d={Icons.trash} size={15} /></button></td></tr>))}</tbody></table></div>
     </div>
   );
 }
 
-// ─── REMINDERS (unchanged) ──────────────────────────────────────────────────
+// ─── REMINDERS ───────────────────────────────────────────────────────────────
 function Reminders({ reminders, toggleReminder, addReminder }) {
   const [text, setText] = useState("");
   const [due, setDue] = useState(today());
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 600 }}>
-      <div className="card">
-        <div style={{ fontWeight: 700, marginBottom: 14, color: "#f1f5f9" }}>Add Reminder</div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <input className="input" placeholder="e.g. Order iPhone screens" value={text} onChange={e => setText(e.target.value)} style={{ flex: 1 }} />
-          <input className="input" type="date" value={due} onChange={e => setDue(e.target.value)} style={{ width: 150 }} />
-          <button className="btn btn-primary" onClick={() => { if (text) { addReminder(text, due); setText(""); } }}>Add</button>
-        </div>
-      </div>
-      <div className="card">
-        <div style={{ fontWeight: 700, marginBottom: 14, color: "#f1f5f9" }}>Active ({reminders.filter(r => !r.done).length})</div>
-        {reminders.filter(r => !r.done).map(r => (
-          <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid #334155" }}>
-            <input type="checkbox" checked={r.done} onChange={() => toggleReminder(r.id)} style={{ width: 16, height: 16, cursor: "pointer", accentColor: "#2563eb" }} />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 500, fontSize: 14, color: "#e2e8f0" }}>{r.text}</div>
-              <div style={{ fontSize: 12, color: r.due < today() ? "#f87171" : "#475569" }}>Due: {r.due}</div>
-            </div>
-          </div>
-        ))}
-        {reminders.filter(r => r.done).length > 0 && (
-          <>
-            <div style={{ fontWeight: 600, marginTop: 16, marginBottom: 10, color: "#475569", fontSize: 12, textTransform: "uppercase", letterSpacing: ".05em" }}>Done</div>
-            {reminders.filter(r => r.done).map(r => (
-              <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", opacity: .45 }}>
-                <input type="checkbox" checked={r.done} onChange={() => toggleReminder(r.id)} style={{ width: 16, height: 16, cursor: "pointer" }} />
-                <div style={{ textDecoration: "line-through", fontSize: 14, color: "#475569" }}>{r.text}</div>
-              </div>
-            ))}
-          </>
-        )}
-      </div>
+      <div className="card"><div style={{ fontWeight: 700, marginBottom: 14, color: "#f1f5f9" }}>Add Reminder</div><div style={{ display: "flex", gap: 10 }}><input className="input" placeholder="e.g. Order iPhone screens" value={text} onChange={e => setText(e.target.value)} style={{ flex: 1 }} /><input className="input" type="date" value={due} onChange={e => setDue(e.target.value)} style={{ width: 150 }} /><button className="btn btn-primary" onClick={() => { if (text) { addReminder(text, due); setText(""); } }}>Add</button></div></div>
+      <div className="card"><div style={{ fontWeight: 700, marginBottom: 14, color: "#f1f5f9" }}>Active ({reminders.filter(r => !r.done).length})</div>{reminders.filter(r => !r.done).map(r => (<div key={r.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: "1px solid #334155" }}><input type="checkbox" checked={r.done} onChange={() => toggleReminder(r.id)} style={{ width: 16, height: 16, cursor: "pointer", accentColor: "#2563eb" }} /><div style={{ flex: 1 }}><div style={{ fontWeight: 500, fontSize: 14, color: "#e2e8f0" }}>{r.text}</div><div style={{ fontSize: 12, color: r.due < today() ? "#f87171" : "#475569" }}>Due: {r.due}</div></div></div>))}{reminders.filter(r => r.done).length > 0 && (<><div style={{ fontWeight: 600, marginTop: 16, marginBottom: 10, color: "#475569", fontSize: 12, textTransform: "uppercase", letterSpacing: ".05em" }}>Done</div>{reminders.filter(r => r.done).map(r => (<div key={r.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 0", opacity: .45 }}><input type="checkbox" checked={r.done} onChange={() => toggleReminder(r.id)} style={{ width: 16, height: 16, cursor: "pointer" }} /><div style={{ textDecoration: "line-through", fontSize: 14, color: "#475569" }}>{r.text}</div></div>))}</>)}</div>
     </div>
   );
 }
