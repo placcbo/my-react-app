@@ -250,7 +250,7 @@ const generateReceiptPDF = async (sale) => {
   pdf.rect(25, y, 30, 30);
   pdf.setFontSize(6);
   pdf.setTextColor(150, 150, 150);
-  pdf.text("SCAN", 40, y + 16, { align: "center" });
+ 
 
   return pdf.output("blob");
 };
@@ -485,13 +485,8 @@ const printReceipt = (sale) => {
 
       <div class="divider"></div>
 
-      <div class="qr">
-        ⬛⬛⬛⬛⬛⬛⬛⬛⬛<br>
-        ⬛  SCAN ME  ⬛<br>
-        ⬛⬛⬛⬛⬛⬛⬛⬛⬛
-      </div>
+   
 
-      <div class="barcode">| | | | | | | | | | | |</div>
 
       <div class="footer">
         Thank you for choosing Softcare!<br>
