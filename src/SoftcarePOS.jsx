@@ -7,7 +7,7 @@ const STORAGE_KEYS = {
   REMINDERS: "softcare_reminders",
 };
 
-// ─── EMPTY DEFAULTS (user starts fresh) ─────────────────────────────────────
+// ─── NO DEMO DATA – always start empty ──────────────────────────────────────
 const EMPTY_STOCK = [];
 const EMPTY_SALES = [];
 const EMPTY_REMINDERS = [];
@@ -51,6 +51,7 @@ const Icons = {
   phone: "M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.8a19.79 19.79 0 01-3.07-8.68A2 2 0 012 1h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 8.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z",
   eye: "M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8zM12 9a3 3 0 100 6 3 3 0 000-6z",
   pdf: "M4 4v16h16V4H4zm2 2h12v12H6V6zm2 2v8h8V8H8z",
+  reset: "M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z M12 9v6M9 12h6",
 };
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
@@ -316,7 +317,7 @@ export default function SoftcarePOS() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   
-  // Load from localStorage or start with empty arrays
+  // Load from localStorage or start with empty arrays (NO DEMO DATA)
   const [stock, setStock] = useState(() => loadFromStorage(STORAGE_KEYS.STOCK, EMPTY_STOCK));
   const [sales, setSales] = useState(() => loadFromStorage(STORAGE_KEYS.SALES, EMPTY_SALES));
   const [reminders, setReminders] = useState(() => loadFromStorage(STORAGE_KEYS.REMINDERS, EMPTY_REMINDERS));
@@ -353,6 +354,16 @@ export default function SoftcarePOS() {
   const showToast = (msg, ok = true) => {
     setToast({ msg, ok });
     setTimeout(() => setToast(null), 3200);
+  };
+
+  // Reset all data (clear localStorage and reload page)
+  const resetAllData = () => {
+    if (window.confirm("⚠️ WARNING: This will delete ALL stock, sales, and reminders. This action cannot be undone. Continue?")) {
+      localStorage.removeItem(STORAGE_KEYS.STOCK);
+      localStorage.removeItem(STORAGE_KEYS.SALES);
+      localStorage.removeItem(STORAGE_KEYS.REMINDERS);
+      window.location.reload();
+    }
   };
 
   const todaySales = sales.filter(s => s.date?.startsWith(today()));
@@ -514,6 +525,9 @@ export default function SoftcarePOS() {
           </div>
         ))}
         <div style={{ flex: 1 }} />
+        <div className="nav-item" style={{ opacity: .6 }} onClick={resetAllData}>
+          <Icon d={Icons.reset} size={17} /> Reset All Data
+        </div>
         <div className="nav-item" style={{ opacity: .6 }} onClick={() => showToast("Logged out")}>
           <Icon d={Icons.logout} size={17} /> Log Out
         </div>
@@ -727,7 +741,7 @@ function Orders({ sales, setSales, showToast }) {
                 <td style={{ color: "#475569", fontSize: 12 }}>{new Date(s.date).toLocaleDateString("en-KE")}</td>
                 <td><span className="badge badge-green">Completed</span></td>
                 <td><button onClick={() => deleteOrder(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", padding: "4px" }}><Icon d={Icons.trash} size={16} /></button></td>
-              </table>
+              </tr>
             );
           })}
         </tbody>
