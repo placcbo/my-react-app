@@ -18,13 +18,11 @@ const DEMO_STOCK = [
   { id: 7, name: "Water Damage Repair", category: "Service", price: 2000, quantity: 99 },
   { id: 8, name: "Tempered Glass", category: "Accessories", price: 350, quantity: 50 },
 ];
-
 const DEMO_SALES = [
   { id: 1, items: JSON.stringify([{ name: "Screen Repair - iPhone", qty: 1, price: 3500 }]), total: 3500, customer: "John Kamau", payment: "Mpesa", phone: "0712345678", date: new Date(Date.now() - 172800000).toISOString() },
   { id: 2, items: JSON.stringify([{ name: "Battery Replacement", qty: 1, price: 1200 }, { name: "Tempered Glass", qty: 1, price: 350 }]), total: 1550, customer: "Mary Wanjiku", payment: "Cash", phone: "0722987654", date: new Date(Date.now() - 86400000).toISOString() },
   { id: 3, items: JSON.stringify([{ name: "Samsung S21 Battery", qty: 2, price: 1800 }]), total: 3600, customer: "Walk-in", payment: "Cash", phone: "", date: new Date().toISOString() },
 ];
-
 const DEMO_REMINDERS = [
   { id: 1, text: "Order iPhone 15 screens", due: new Date().toISOString().split("T")[0], done: false },
   { id: 2, text: "Follow up with John on repair", due: new Date().toISOString().split("T")[0], done: false },
@@ -43,7 +41,7 @@ const loadFromStorage = (key, demoData) => {
   return demoData;
 };
 
-// ─── ICONS (unchanged) ──────────────────────────────────────────────────────
+// ─── ICONS ───────────────────────────────────────────────────────────────────
 const Icon = ({ d, size = 20 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d={d} />
@@ -71,7 +69,7 @@ const Icons = {
   close: "M18 6L6 18M6 6l12 12",
 };
 
-// ─── HELPERS (unchanged) ────────────────────────────────────────────────────
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
 const fmt = (n) => `Ksh ${Number(n).toLocaleString()}`;
 const today = () => new Date().toISOString().split("T")[0];
 const timeAgo = (iso) => {
@@ -91,7 +89,7 @@ const fmtPhone = (p) => {
   return n;
 };
 
-// ─── WHATSAPP & PRINT (unchanged, but using the improved versions) ─────────
+// ─── WHATSAPP & PRINT ────────────────────────────────────────────────────────
 const sendWhatsApp = (sale) => {
   if (!sale.phone || sale.phone.trim() === "") {
     alert("No phone number for this customer. Please add a phone number to send WhatsApp receipt.");
@@ -183,7 +181,7 @@ const printReceipt = (sale) => {
   w.document.close();
 };
 
-// ─── RECEIPT CARD (unchanged) ──────────────────────────────────────────────
+// ─── RECEIPT CARD (reusable) ────────────────────────────────────────────────
 function ReceiptCard({ sale, onClose }) {
   const items = JSON.parse(sale.items);
   const receiptNum = "RC" + String(sale.id).slice(-6).toUpperCase();
@@ -224,7 +222,7 @@ function ReceiptCard({ sale, onClose }) {
   );
 }
 
-// ─── MAIN APP (with localStorage persistence) ────────────────────────────────
+// ─── MAIN APP ────────────────────────────────────────────────────────────────
 export default function SoftcarePOS() {
   const [page, setPage] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -463,10 +461,10 @@ export default function SoftcarePOS() {
         <div style={{ flex: 1, overflow: "auto", padding: 24 }} className="page-enter" key={page}>
           {page === "dashboard" && <Dashboard sales={sales} stock={stock} todayRevenue={todayRevenue} totalRevenue={totalRevenue} lowStock={lowStock} reminders={reminders} setPage={setPage} />}
           {page === "pos" && <POS stock={stock} cart={cart} addToCart={addToCart} removeFromCart={removeFromCart} cartTotal={cartTotal} customer={customer} setCustomer={setCustomer} phone={phone} setPhone={setPhone} payment={payment} setPayment={setPayment} completeSale={completeSale} searchQ={searchQ} setSearchQ={setSearchQ} />}
-          {page === "orders" && <Orders sales={sales} />}
-          {page === "invoices" && <Invoices sales={sales} />}
+          {page === "orders" && <Orders sales={sales} setSales={setSales} showToast={showToast} />}
+          {page === "invoices" && <Invoices sales={sales} setSales={setSales} showToast={showToast} />}
           {page === "reports" && <Reports sales={sales} />}
-          {page === "receipts" && <Receipts sales={sales} />}
+          {page === "receipts" && <Receipts sales={sales} setSales={setSales} showToast={showToast} />}
           {page === "stock" && <Stock stock={stock} addStockItem={addStockItem} deleteStockItem={deleteStockItem} showToast={showToast} />}
           {page === "reminders" && <Reminders reminders={reminders} toggleReminder={toggleReminder} addReminder={addReminder} />}
         </div>
@@ -498,7 +496,7 @@ export default function SoftcarePOS() {
   );
 }
 
-// ─── DASHBOARD (unchanged) ──────────────────────────────────────────────────
+// ─── DASHBOARD ───────────────────────────────────────────────────────────────
 function Dashboard({ sales, stock, todayRevenue, totalRevenue, lowStock, reminders, setPage }) {
   const recentSales = sales.slice(0, 6);
   const stats = [
@@ -567,7 +565,7 @@ function Dashboard({ sales, stock, todayRevenue, totalRevenue, lowStock, reminde
   );
 }
 
-// ─── POS (unchanged) ────────────────────────────────────────────────────────
+// ─── POS ─────────────────────────────────────────────────────────────────────
 function POS({ stock, cart, addToCart, removeFromCart, cartTotal, customer, setCustomer, phone, setPhone, payment, setPayment, completeSale, searchQ, setSearchQ }) {
   const [cat, setCat] = useState("All");
   const categories = ["All", ...new Set(stock.map(s => s.category))];
@@ -653,13 +651,22 @@ function POS({ stock, cart, addToCart, removeFromCart, cartTotal, customer, setC
   );
 }
 
-// ─── ORDERS (unchanged) ─────────────────────────────────────────────────────
-function Orders({ sales }) {
+// ─── ORDERS (with delete) ───────────────────────────────────────────────────
+function Orders({ sales, setSales, showToast }) {
+  const deleteOrder = (id) => {
+    if (window.confirm("Delete this order permanently?")) {
+      setSales(sales.filter(s => s.id !== id));
+      showToast("Order deleted", true);
+    }
+  };
+
   return (
     <div className="card">
       <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: "#f1f5f9" }}>All Orders ({sales.length})</div>
       <table className="table">
-        <thead><tr><th>#</th><th>Customer</th><th>Items</th><th>Total</th><th>Payment</th><th>Date</th><th>Status</th></tr></thead>
+        <thead>
+          <tr><th>#</th><th>Customer</th><th>Items</th><th>Total</th><th>Payment</th><th>Date</th><th>Status</th><th></th></tr>
+        </thead>
         <tbody>
           {sales.map((s, i) => {
             const items = JSON.parse(s.items);
@@ -672,6 +679,11 @@ function Orders({ sales }) {
                 <td><span className={`badge ${s.payment === "Mpesa" ? "badge-blue" : s.payment === "Card" ? "badge-orange" : "badge-gray"}`}>{s.payment}</span></td>
                 <td style={{ color: "#475569", fontSize: 12 }}>{new Date(s.date).toLocaleDateString("en-KE")}</td>
                 <td><span className="badge badge-green">Completed</span></td>
+                <td>
+                  <button onClick={() => deleteOrder(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", padding: "4px" }}>
+                    <Icon d={Icons.trash} size={16} />
+                  </button>
+                </td>
               </tr>
             );
           })}
@@ -681,9 +693,18 @@ function Orders({ sales }) {
   );
 }
 
-// ─── INVOICES (unchanged) ───────────────────────────────────────────────────
-function Invoices({ sales }) {
+// ─── INVOICES (with delete) ─────────────────────────────────────────────────
+function Invoices({ sales, setSales, showToast }) {
   const [selected, setSelected] = useState(null);
+
+  const deleteInvoice = (id) => {
+    if (window.confirm("Delete this invoice permanently?")) {
+      setSales(sales.filter(s => s.id !== id));
+      showToast("Invoice deleted", true);
+      if (selected && selected.id === id) setSelected(null);
+    }
+  };
+
   if (selected) {
     const items = JSON.parse(selected.items);
     const invoiceNum = "INV" + String(selected.id).slice(-6).toUpperCase();
@@ -719,10 +740,12 @@ function Invoices({ sales }) {
           <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setSelected(null)}>← Back</button>
           <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => printReceipt(selected)}>🖨️ Print</button>
           <button className="btn btn-wa" style={{ flex: 1 }} onClick={() => sendWhatsApp(selected)}><Icon d={Icons.whatsapp} size={15} /> WhatsApp</button>
+          <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => deleteInvoice(selected.id)}>Delete</button>
         </div>
       </div>
     );
   }
+
   return (
     <div className="card">
       <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: "#f1f5f9" }}>Invoices ({sales.length})</div>
@@ -738,6 +761,9 @@ function Invoices({ sales }) {
               <td style={{ display: "flex", gap: 6 }}>
                 <button className="btn btn-ghost" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => setSelected(s)}>View</button>
                 <button className="btn btn-wa" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => sendWhatsApp(s)}><Icon d={Icons.whatsapp} size={13} /></button>
+                <button onClick={() => deleteInvoice(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", padding: "5px 10px" }}>
+                  <Icon d={Icons.trash} size={14} />
+                </button>
               </td>
             </tr>
           ))}
@@ -747,19 +773,32 @@ function Invoices({ sales }) {
   );
 }
 
-// ─── RECEIPTS (unchanged) ───────────────────────────────────────────────────
-function Receipts({ sales }) {
+// ─── RECEIPTS (with delete) ─────────────────────────────────────────────────
+function Receipts({ sales, setSales, showToast }) {
   const [selected, setSelected] = useState(null);
+
+  const deleteReceipt = (id) => {
+    if (window.confirm("Delete this receipt permanently?")) {
+      setSales(sales.filter(s => s.id !== id));
+      showToast("Receipt deleted", true);
+      if (selected && selected.id === id) setSelected(null);
+    }
+  };
+
   if (selected) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 16, alignItems: "center" }}>
         <div style={{ width: "100%", maxWidth: 420 }}>
           <button className="btn btn-ghost" style={{ marginBottom: 16 }} onClick={() => setSelected(null)}>← Back to receipts</button>
           <ReceiptCard sale={selected} onClose={() => setSelected(null)} />
+          <button className="btn btn-danger" style={{ marginTop: 12, width: "100%" }} onClick={() => deleteReceipt(selected.id)}>
+            Delete Receipt
+          </button>
         </div>
       </div>
     );
   }
+
   return (
     <div className="card">
       <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: "#f1f5f9" }}>Receipt History ({sales.length})</div>
@@ -783,6 +822,9 @@ function Receipts({ sales }) {
                   </button>
                   <button className="btn btn-wa" style={{ padding: "5px 10px", fontSize: 12 }} onClick={() => sendWhatsApp(s)}>
                     <Icon d={Icons.whatsapp} size={13} />
+                  </button>
+                  <button onClick={() => deleteReceipt(s.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "#dc2626", padding: "5px 10px" }}>
+                    <Icon d={Icons.trash} size={14} />
                   </button>
                 </div>
               </td>
